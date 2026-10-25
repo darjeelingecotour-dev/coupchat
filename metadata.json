@@ -1,0 +1,6 @@
+{
+  "name": "Coupchat",
+  "description": "Anonymous stranger-to-stranger chatting and instant matchmaking with zero logs, ephemeral media, and tap-to-reveal filters.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
