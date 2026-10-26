@@ -52,6 +52,9 @@ export default function App() {
     setMyAlias,
     myColor,
     setMyColor,
+    myAvatar,
+    setMyAvatar,
+    updateProfile,
     createGroup,
     joinGroup,
     leaveGroup,
@@ -172,6 +175,9 @@ export default function App() {
             onNextStranger={nextStranger}
             onEndChat={handleExitCurrent}
             onToggleRevealMedia={toggleRevealMedia}
+            myAvatar={myAvatar}
+            myAlias={myAlias}
+            onUpdateAvatar={(avatarUrl) => updateProfile(myAlias, myColor, avatarUrl)}
           />
         ) : viewState === 'matching' ? (
           <div className="flex-1 flex items-center justify-center py-12">
@@ -194,6 +200,8 @@ export default function App() {
             onToggleRevealMedia={toggleRevealGroupMedia}
             myAlias={myAlias}
             myColor={myColor}
+            myAvatar={myAvatar}
+            onUpdateAvatar={(avatarUrl) => updateProfile(myAlias, myColor, avatarUrl)}
           />
         ) : viewState === 'groups' ? (
           <GroupLounge
@@ -202,8 +210,19 @@ export default function App() {
             onCreateGroup={createGroup}
             myAlias={myAlias}
             myColor={myColor}
-            onUpdateAlias={setMyAlias}
-            onUpdateColor={setMyColor}
+            myAvatar={myAvatar}
+            onUpdateAlias={(alias) => {
+              setMyAlias(alias);
+              updateProfile(alias, myColor, myAvatar);
+            }}
+            onUpdateColor={(color) => {
+              setMyColor(color);
+              updateProfile(myAlias, color, myAvatar);
+            }}
+            onUpdateAvatar={(avatarUrl) => {
+              setMyAvatar(avatarUrl);
+              updateProfile(myAlias, myColor, avatarUrl);
+            }}
             groupError={groupError}
             onClearError={() => setGroupError(null)}
             onlineCount={onlineCount}

@@ -14,11 +14,16 @@ import {
   Zap,
   Lock,
   Play,
-  ArrowRight
+  ArrowRight,
+  Users,
+  X,
+  ShieldCheck,
+  Check,
 } from 'lucide-react';
 import { ChatMessage, MatchInfo } from '../types';
 import { GifPicker } from './GifPicker';
 import { MediaModal } from './MediaModal';
+import { AvatarPickerModal } from './AvatarPickerModal';
 
 interface ChatRoomProps {
   messages: ChatMessage[];
@@ -36,6 +41,9 @@ interface ChatRoomProps {
   onNextStranger: () => void;
   onEndChat: () => void;
   onToggleRevealMedia: (id: string) => void;
+  myAvatar: string;
+  myAlias: string;
+  onUpdateAvatar?: (avatarUrl: string) => void;
 }
 
 const QUICK_ICEBREAKERS = [
@@ -56,13 +64,23 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   onNextStranger,
   onEndChat,
   onToggleRevealMedia,
+  myAvatar,
+  myAlias,
+  onUpdateAvatar,
 }) => {
   const [inputText, setInputText] = useState('');
+  const [isUsersPanelOpen, setIsUsersPanelOpen] = useState(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isGifPickerOpen, setIsGifPickerOpen] = useState(false);
   const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isReported, setIsReported] = useState(false);
   const [durationSeconds, setDurationSeconds] = useState(0);
+
+  const strangerAvatar =
+    matchInfo?.partnerAvatarUrl ||
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=160&auto=format&fit=crop&q=80';
+  const isStrangerOnline = !partnerLeft;
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -170,32 +188,82 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             <span>NEXT</span>
           </button>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
-                {matchInfo?.strangerAlias || 'Stranger'}
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              </h3>
-              {matchInfo?.partnerGender && (
-                <span className="text-[10px] text-pink-300/80 capitalize">
-                  ({matchInfo.partnerGender})
-                </span>
-              )}
+          {/* Stranger Avatar & Details */}
+          <div className="flex items-center gap-2.5">
+            <div className="relative shrink-0">
+              <img
+                src={strangerAvatar}
+                alt={matchInfo?.strangerAlias || 'Stranger'}
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover transition-all ${
+                  isStrangerOnline
+                    ? 'ring-2 ring-emerald-400/80 shadow-[0_0_10px_rgba(52,211,153,0.3)]'
+                    : 'ring-2 ring-slate-600 grayscale'
+                }`}
+              />
+              <span
+                className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-[#0d071b] ${
+                  isStrangerOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
+                }`}
+                title={isStrangerOnline ? 'Status: Online' : 'Status: Offline (Left chat)'}
+              />
             </div>
-            <div className="flex items-center gap-2 text-[10px] text-slate-400">
-              <span className="tabular-nums font-mono text-pink-400">
-                {formatDuration(durationSeconds)}
-              </span>
-              <span aria-hidden="true">·</span>
-              <span className="truncate max-w-[120px] sm:max-w-none">
-                {matchInfo?.topic || 'Late-Night Whispers'}
-              </span>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
+                  <span>{matchInfo?.strangerAlias || 'Stranger'}</span>
+                  {isStrangerOnline ? (
+                    <span className="text-[10px] text-emerald-400 font-bold hidden sm:inline">
+                      ● Online
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 font-bold hidden sm:inline">
+                      ● Offline
+                    </span>
+                  )}
+                </h3>
+                {matchInfo?.partnerGender && (
+                  <span className="text-[10px] text-pink-300/80 capitalize">
+                    ({matchInfo.partnerGender})
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                <span className="tabular-nums font-mono text-pink-400">
+                  {formatDuration(durationSeconds)}
+                </span>
+                <span aria-hidden="true">·</span>
+                <span className="truncate max-w-[100px] sm:max-w-none">
+                  {matchInfo?.topic || 'Late-Night Whispers'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Header Actions */}
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Entered Users Panel Toggle */}
+          <button
+            onClick={() => setIsUsersPanelOpen(!isUsersPanelOpen)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-pink-600/15 hover:bg-pink-600/25 border border-pink-500/30 text-xs font-semibold text-pink-300 transition-all cursor-pointer"
+            title="Open Entered Users Panel"
+          >
+            <Users className="w-3.5 h-3.5 text-pink-400" />
+            <span className="hidden sm:inline font-bold">Entered Users</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-pink-500/20 text-white font-mono">
+              2
+            </span>
+            <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold bg-emerald-500/15 px-1.5 py-0.2 rounded-md">
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  isStrangerOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'
+                }`}
+              />
+              {isStrangerOnline ? '2 Online' : '1 Online'}
+            </span>
+          </button>
+
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
             className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.05] transition-colors"
@@ -520,6 +588,188 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
         isOpen={isMediaModalOpen}
         onClose={() => setIsMediaModalOpen(false)}
         onSendMedia={handleSendMediaPayload}
+      />
+
+      {/* Entered Users Panel (Real-Time Presence & Status) */}
+      {isUsersPanelOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsUsersPanelOpen(false)}
+          />
+
+          {/* Drawer Sidebar */}
+          <div className="relative z-10 w-full max-w-sm bg-[#0e071c] border-l border-white/10 p-5 flex flex-col justify-between shadow-2xl h-full animate-in slide-in-from-right duration-200">
+            <div className="space-y-5">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-xl bg-pink-500/10 text-pink-400">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
+                      <span>Entered Users</span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 font-mono">
+                        2
+                      </span>
+                    </h3>
+                    <p className="text-[10px] text-slate-400">
+                      Real humans joined in this session
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsUsersPanelOpen(false)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Verified Zero-Bots Guarantee Banner */}
+              <div className="p-3 rounded-2xl bg-emerald-950/30 border border-emerald-500/20 flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="text-[11px] text-emerald-300/90 leading-tight">
+                  <p className="font-bold text-white mb-0.5">100% Real Humans Verified</p>
+                  <span>Zero bots or automated chat. Every user shown here is an active connected human peer.</span>
+                </div>
+              </div>
+
+              {/* Roster of Entered Users */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                  <span>Room Participants</span>
+                  <span className="text-emerald-400">
+                    {isStrangerOnline ? '2 of 2 Online' : '1 of 2 Online'}
+                  </span>
+                </div>
+
+                {/* User 1: You */}
+                <div className="p-3.5 rounded-2xl bg-pink-600/15 border border-pink-500/40 flex items-center justify-between gap-3 shadow-md">
+                  <div className="flex items-center gap-3">
+                    <div className="relative shrink-0">
+                      <img
+                        src={myAvatar}
+                        alt={myAlias}
+                        className="w-11 h-11 rounded-full object-cover ring-2 ring-emerald-400 shadow-sm"
+                      />
+                      <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-400 ring-2 ring-[#0e071c] animate-pulse" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+                        <span className="truncate">{myAlias}</span>
+                        <span className="text-[10px] text-pink-400 font-semibold shrink-0">
+                          (You)
+                        </span>
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        Chat Participant
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      Online
+                    </span>
+                    <button
+                      onClick={() => setIsAvatarModalOpen(true)}
+                      className="text-[10px] text-pink-300 hover:text-white underline cursor-pointer"
+                    >
+                      Change Pic
+                    </button>
+                  </div>
+                </div>
+
+                {/* User 2: Matched Stranger */}
+                <div
+                  className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                    isStrangerOnline
+                      ? 'bg-white/[0.04] border-white/10 hover:border-pink-500/30'
+                      : 'bg-white/[0.01] border-white/5 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="relative shrink-0">
+                      <img
+                        src={strangerAvatar}
+                        alt={matchInfo?.strangerAlias || 'Stranger'}
+                        className={`w-11 h-11 rounded-full object-cover shadow-sm ${
+                          isStrangerOnline
+                            ? 'ring-2 ring-emerald-400/80'
+                            : 'ring-2 ring-slate-600 grayscale'
+                        }`}
+                      />
+                      <span
+                        className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full ring-2 ring-[#0e071c] ${
+                          isStrangerOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
+                        }`}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+                        <span className="truncate">{matchInfo?.strangerAlias || 'Stranger'}</span>
+                        <span className="text-[10px] text-slate-400 font-medium shrink-0">
+                          (Matched Stranger)
+                        </span>
+                      </p>
+                      <p className="text-[10px] text-slate-400 capitalize">
+                        {matchInfo?.partnerGender ? `${matchInfo.partnerGender} · Anonymous Human` : 'Anonymous Human'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-1.5">
+                    {isStrangerOnline ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        Online
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/5 border border-white/10 text-slate-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                        Offline (Left)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="pt-4 border-t border-white/10 space-y-2">
+              <button
+                onClick={onNextStranger}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-pink-600 to-rose-500 text-white font-bold text-xs shadow-md hover:brightness-110 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+                <span>Next Stranger</span>
+              </button>
+              <button
+                onClick={onEndChat}
+                className="w-full py-2 rounded-xl text-slate-400 hover:text-white text-xs font-semibold hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                Disconnect &amp; Return Home
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Avatar Picker Modal */}
+      <AvatarPickerModal
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        currentAvatar={myAvatar}
+        currentAlias={myAlias}
+        onSelectAvatar={(avatarUrl) => {
+          if (onUpdateAvatar) {
+            onUpdateAvatar(avatarUrl);
+          }
+        }}
       />
     </div>
   );

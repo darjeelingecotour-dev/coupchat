@@ -12,37 +12,60 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+function getAppPort(): number {
+  const portArgIdx = process.argv.indexOf('--port');
+  if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
+    return parseInt(process.argv[portArgIdx + 1], 10);
+  }
+  if (process.env.DEFAULT_APP_PORT) {
+    return parseInt(process.env.DEFAULT_APP_PORT, 10);
+  }
+  // In AI Studio / Cloud Run, PORT=8080 is reserved for nginx reverse proxy.
+  // The app dev server MUST bind to port 3000.
+  if (process.env.PORT && process.env.PORT !== '8080') {
+    return parseInt(process.env.PORT, 10);
+  }
+  return 3000;
+}
+
+const PORT = getAppPort();
+
+server.on('error', (err: any) => {
+  console.error('HTTP server error:', err);
+});
 
 app.use(express.json({ limit: '15mb' }));
 
 // -------------------------------------------------------------
-// Real-Time Ephemeral Matchmaking & Group Lounges Engine
+// Real-Time Ephemeral Matchmaking & Group Lounges Engine (100% Real Users, No Bots)
 // -------------------------------------------------------------
 
-interface UserSession {
+export interface UserSession {
   id: string;
   ws: WebSocket;
   myGender: 'male' | 'female' | 'nonbinary';
   seekingGender: 'female' | 'male' | 'anyone';
   topic: string;
+  avatarUrl: string;
   partnerId: string | null;
   joinedQueueAt: number | null;
-  isSimulatedPartner?: boolean;
   currentGroupId: string | null;
   groupAlias: string | null;
   groupColor: string | null;
 }
 
-interface GroupMemberState {
+export interface GroupMemberState {
   id: string;
   alias: string;
   color: string;
+  avatarUrl: string;
+  status: 'online' | 'offline';
   isHost?: boolean;
   joinedAt: number;
 }
 
-interface GroupRoomState {
+export interface GroupRoomState {
   id: string;
   name: string;
   topic: string;
@@ -62,8 +85,16 @@ const sessions = new Map<string, UserSession>();
 const matchQueue: string[] = [];
 const groupRooms = new Map<string, GroupRoomState>();
 
-// Realistic base count of late-night participants
-let baseOnlineSeed = 1420;
+export const DEFAULT_AVATARS = [
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=160&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=160&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=160&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=160&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=160&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=160&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=160&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=160&auto=format&fit=crop&q=80',
+];
 
 const RANDOM_ALIASES = [
   'Velvet Panther',
@@ -92,7 +123,7 @@ function generateRandomId(): string {
   return Math.random().toString(36).substring(2, 10);
 }
 
-// Pre-seed curated public group lounges
+// Pre-seed curated public group lounges (Zero fake members - only real users)
 function seedInitialGroupRooms() {
   const initialRooms: Array<Omit<GroupRoomState, 'members' | 'recentMessages'>> = [
     {
@@ -196,75 +227,24 @@ function seedInitialGroupRooms() {
     },
   ];
 
-  const memberPool = [
-    { alias: 'Velvet Fox', color: '#f43f5e' },
-    { alias: 'Neon Panther', color: '#6366f1' },
-    { alias: 'Midnight Lynx', color: '#06b6d4' },
-    { alias: 'Cosmic Soul', color: '#a855f7' },
-    { alias: 'Obsidian Wolf', color: '#10b981' },
-    { alias: 'Crimson Ghost', color: '#ec4899' },
-    { alias: 'Electric Viper', color: '#f59e0b' },
-  ];
-
-  // Specific member count distribution to establish clear trending rooms
-  const memberCounts = [18, 24, 14, 9, 21, 16, 12, 10];
-
-  const starterSnippets = [
-    { sender: 'Velvet Fox', color: '#f43f5e', text: 'Honestly, the hardest part of late nights is knowing I can’t text them... 🌙', time: '02:14 AM' },
-    { sender: 'Neon Panther', color: '#6366f1', text: 'Someone give me a truth or dare that’s actually daring 😈', time: '02:18 AM' },
-    { sender: 'Midnight Lynx', color: '#06b6d4', text: 'Dare accepted! Just dropped the proof with blur filter 🙈', time: '02:12 AM', mediaType: 'image' },
-    { sender: 'Cosmic Soul', color: '#a855f7', text: 'Do you think we remember dreams, or do dreams remember us?', time: '02:08 AM' },
-    { sender: 'Obsidian Wolf', color: '#10b981', text: 'Espresso martini in hand. Who else is awake in Europe right now? 🍸', time: '02:16 AM' },
-    { sender: 'Electric Viper', color: '#f59e0b', text: 'Rule #1: What is whispered in here stays in RAM forever. ✨', time: '02:11 AM' },
-    { sender: 'Crimson Ghost', color: '#ec4899', text: 'Never have I ever fallen for someone purely from late night chats...', time: '02:15 AM' },
-    { sender: 'Shadow Orchid', color: '#a855f7', text: 'Listening to late night jazz rain while watching the skyline 🌧️🎶', time: '02:17 AM' },
-  ];
-
-  for (let rIdx = 0; rIdx < initialRooms.length; rIdx++) {
-    const r = initialRooms[rIdx];
-    const snippet = starterSnippets[rIdx % starterSnippets.length];
+  for (const r of initialRooms) {
     const roomState: GroupRoomState = {
       ...r,
-      members: new Map(),
+      members: new Map(), // Real users only when they enter
       recentMessages: [
         {
-          id: `seed_msg_1_${r.id}`,
+          id: `welcome_${r.id}`,
           groupId: r.id,
           senderId: 'sys',
           senderAlias: 'Lounge Host',
           senderColor: '#ec4899',
           isMe: false,
-          content: `Welcome to ${r.name}! Speak your mind freely. Everything shared here is 100% ephemeral and unlogged.`,
-          timestamp: '11:45 PM',
+          content: `Welcome to ${r.name}! 100% real anonymous humans only. Speak freely—no bot logs or records are ever kept.`,
+          timestamp: 'Live',
           isSystem: true,
-        },
-        {
-          id: `seed_msg_2_${r.id}`,
-          groupId: r.id,
-          senderId: `sim_m_0_${r.id}`,
-          senderAlias: snippet.sender,
-          senderColor: snippet.color,
-          isMe: false,
-          content: snippet.text,
-          mediaType: snippet.mediaType || 'text',
-          timestamp: snippet.time,
         },
       ],
     };
-
-    const targetCount = memberCounts[rIdx] || 5;
-    for (let i = 0; i < targetCount; i++) {
-      const p = memberPool[i % memberPool.length];
-      const fakeId = `sim_m_${i}_${r.id}`;
-      roomState.members.set(fakeId, {
-        id: fakeId,
-        alias: i === 0 ? p.alias : `${p.alias} #${100 + i}`,
-        color: p.color,
-        isHost: i === 0,
-        joinedAt: Date.now() - 1000 * 60 * (i * 4 + 2),
-      });
-    }
-
     groupRooms.set(r.id, roomState);
   }
 }
@@ -273,11 +253,9 @@ seedInitialGroupRooms();
 
 function broadcastOnlineCount() {
   const realCount = sessions.size;
-  const simulatedActive =
-    baseOnlineSeed + realCount * 12 + Math.floor(Math.sin(Date.now() / 60000) * 45);
   const payload = JSON.stringify({
     type: 'online_stats',
-    onlineCount: Math.max(simulatedActive, realCount),
+    onlineCount: realCount,
     realConnected: realCount,
   });
 
@@ -291,16 +269,10 @@ function broadcastOnlineCount() {
 function getPublicGroupsList() {
   const list = [];
   for (const group of groupRooms.values()) {
-    // Find last user message or fallback to last message
     let lastMsg: any = null;
     for (let i = group.recentMessages.length - 1; i >= 0; i--) {
-      if (!group.recentMessages[i].isSystem) {
-        lastMsg = group.recentMessages[i];
-        break;
-      }
-    }
-    if (!lastMsg && group.recentMessages.length > 0) {
-      lastMsg = group.recentMessages[group.recentMessages.length - 1];
+      lastMsg = group.recentMessages[i];
+      break;
     }
 
     let lastMessageSnippet = undefined;
@@ -319,13 +291,18 @@ function getPublicGroupsList() {
       };
     }
 
+    const onlineMembersCount = Array.from(group.members.values()).filter(
+      (m) => m.status === 'online'
+    ).length;
+
     list.push({
       id: group.id,
       name: group.name,
       topic: group.topic,
       description: group.description,
       isPrivate: group.isPrivate,
-      memberCount: group.members.size,
+      memberCount: onlineMembersCount,
+      totalEnteredCount: group.members.size,
       maxMembers: group.maxMembers,
       tags: group.tags,
       createdAt: group.createdAt,
@@ -429,6 +406,8 @@ function pairUsers(userAId: string, userBId: string) {
         type: 'matched',
         strangerAlias: `Stranger #${strangerNumB}`,
         partnerGender: userB.myGender,
+        partnerAvatarUrl: userB.avatarUrl,
+        partnerStatus: 'online',
         topic: userB.topic || 'Late-Night Vibes',
       })
     );
@@ -440,6 +419,8 @@ function pairUsers(userAId: string, userBId: string) {
         type: 'matched',
         strangerAlias: `Stranger #${strangerNumA}`,
         partnerGender: userA.myGender,
+        partnerAvatarUrl: userA.avatarUrl,
+        partnerStatus: 'online',
         topic: userA.topic || 'Late-Night Vibes',
       })
     );
@@ -479,124 +460,65 @@ function leaveCurrentGroup(session: UserSession) {
   const group = groupRooms.get(groupId);
 
   if (group) {
-    group.members.delete(session.id);
+    const member = group.members.get(session.id);
+    if (member) {
+      member.status = 'offline';
+    }
 
-    // Notify remaining group members
+    // Notify remaining group members of status change to offline
     const leaveMsg = {
       id: `sys_left_${generateRandomId()}`,
       groupId,
       senderId: 'sys',
       senderAlias: session.groupAlias || 'A stranger',
       senderColor: session.groupColor || '#ec4899',
+      senderAvatarUrl: session.avatarUrl,
       isMe: false,
-      content: `${session.groupAlias || 'A stranger'} stepped out of the lounge.`,
+      content: `${session.groupAlias || 'A stranger'} went offline.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isSystem: true,
     };
     group.recentMessages.push(leaveMsg);
-    if (group.recentMessages.length > 40) group.recentMessages.shift();
+    if (group.recentMessages.length > 50) group.recentMessages.shift();
+
+    const allEnteredMembers = Array.from(group.members.values());
+    const onlineCount = allEnteredMembers.filter((m) => m.status === 'online').length;
 
     broadcastToGroup(
       groupId,
       JSON.stringify({
-        type: 'group_member_left',
+        type: 'group_member_status',
         memberId: session.id,
+        status: 'offline',
         alias: session.groupAlias,
+        members: allEnteredMembers,
         message: leaveMsg,
-        memberCount: group.members.size,
+        memberCount: onlineCount,
       })
     );
-
-    // If custom empty group and creator left, dissolve after 10 mins or keep public rooms
-    if (group.members.size === 0 && !group.id.startsWith('grp_')) {
-      groupRooms.delete(groupId);
-    }
   }
 
   session.currentGroupId = null;
   broadcastGroupList();
 }
 
-// Simulated solo testing responses for 1-on-1
-const companionGreetings = [
-  "Hey there... what keeps you up so late tonight? 🌙",
-  "Couldn't sleep, had to find someone interesting. What's your vibe right now?",
-  "Whispers in the dark are always the most honest. What's on your mind? 😈",
-  "Hey! Honestly glad I skipped into your room. What are you doing in bed right now?",
-  "Late nights are made for good conversation and bad habits. Which one do you bring?",
-];
-
-const companionReplies = [
-  "Haha, I love that answer! You're definitely not boring.",
-  "Tell me your biggest guilty pleasure when nobody is watching 👀",
-  "I was actually just listening to music with the lights dimmed down.",
-  "That sounds dangerously intriguing... care to elaborate? 😈",
-  "If you could teleport anywhere right this second, where are we going?",
-  "You have really good energy. Do you stay up late often?",
-  "Send a teaser photo or GIF! Let's see what you're working with 😉",
-  "That's such a mood. I swear 2 AM hits completely differently.",
-];
-
-function handleCompanionSimulation(user: UserSession) {
-  const companionId = `comp_${generateRandomId()}`;
-  const strangerNum = Math.floor(100 + Math.random() * 899);
-
-  const idx = matchQueue.indexOf(user.id);
-  if (idx !== -1) matchQueue.splice(idx, 1);
-
-  user.partnerId = companionId;
-  user.isSimulatedPartner = true;
-
-  if (user.ws.readyState === WebSocket.OPEN) {
-    user.ws.send(
-      JSON.stringify({
-        type: 'matched',
-        strangerAlias: `Stranger #${strangerNum}`,
-        partnerGender:
-          user.seekingGender === 'female'
-            ? 'female'
-            : user.seekingGender === 'male'
-            ? 'male'
-            : 'nonbinary',
-        topic: user.topic || 'Late-Night Whispers',
-        isCompanion: true,
-      })
-    );
-
-    setTimeout(() => {
-      if (user.partnerId === companionId && user.ws.readyState === WebSocket.OPEN) {
-        user.ws.send(JSON.stringify({ type: 'partner_typing', isTyping: true }));
-        setTimeout(() => {
-          if (user.partnerId === companionId && user.ws.readyState === WebSocket.OPEN) {
-            user.ws.send(JSON.stringify({ type: 'partner_typing', isTyping: false }));
-            const greeting = companionGreetings[Math.floor(Math.random() * companionGreetings.length)];
-            user.ws.send(
-              JSON.stringify({
-                type: 'message',
-                id: generateRandomId(),
-                sender: 'stranger',
-                content: greeting,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              })
-            );
-          }
-        }, 1200);
-      }
-    }, 800);
-  }
-}
-
 // WebSocket Server initialization on the same HTTP server
 const wss = new WebSocketServer({ server });
 
+wss.on('error', (err) => {
+  console.error('WebSocketServer error:', err);
+});
+
 wss.on('connection', (ws) => {
   const sessionId = generateRandomId();
+  const randomAvatar = DEFAULT_AVATARS[Math.floor(Math.random() * DEFAULT_AVATARS.length)];
   const session: UserSession = {
     id: sessionId,
     ws,
     myGender: 'male',
     seekingGender: 'anyone',
     topic: 'late_night',
+    avatarUrl: randomAvatar,
     partnerId: null,
     joinedQueueAt: null,
     currentGroupId: null,
@@ -611,6 +533,7 @@ wss.on('connection', (ws) => {
       sessionId,
       defaultAlias: session.groupAlias,
       defaultColor: session.groupColor,
+      defaultAvatar: session.avatarUrl,
     })
   );
 
@@ -622,45 +545,60 @@ wss.on('connection', (ws) => {
     })
   );
 
-  let queueTimer: NodeJS.Timeout | null = null;
-
   ws.on('message', (data) => {
     try {
       const msg = JSON.parse(data.toString());
 
       switch (msg.type) {
-        // ----------------- 1-on-1 Matching -----------------
+        // Profile & Avatar update
+        case 'update_profile': {
+          if (msg.alias) session.groupAlias = msg.alias.trim();
+          if (msg.color) session.groupColor = msg.color;
+          if (msg.avatarUrl) session.avatarUrl = msg.avatarUrl;
+
+          if (session.currentGroupId) {
+            const group = groupRooms.get(session.currentGroupId);
+            if (group && group.members.has(session.id)) {
+              const m = group.members.get(session.id)!;
+              m.alias = session.groupAlias || m.alias;
+              m.color = session.groupColor || m.color;
+              m.avatarUrl = session.avatarUrl || m.avatarUrl;
+
+              broadcastToGroup(
+                session.currentGroupId,
+                JSON.stringify({
+                  type: 'group_members_updated',
+                  members: Array.from(group.members.values()),
+                })
+              );
+            }
+          }
+          break;
+        }
+
+        // ----------------- 1-on-1 Matching (100% Real Users, Zero Bots) -----------------
         case 'join_queue': {
           leaveCurrentGroup(session);
           dissolvePair(sessionId, true);
           session.myGender = msg.myGender || 'male';
           session.seekingGender = msg.seekingGender || 'anyone';
           session.topic = msg.topic || 'late_night';
+          if (msg.avatarUrl) session.avatarUrl = msg.avatarUrl;
           session.joinedQueueAt = Date.now();
-          session.isSimulatedPartner = false;
 
           const matchedPeerId = findMatchFor(sessionId);
           if (matchedPeerId) {
-            if (queueTimer) clearTimeout(queueTimer);
             pairUsers(sessionId, matchedPeerId);
           } else {
             if (!matchQueue.includes(sessionId)) {
               matchQueue.push(sessionId);
             }
             ws.send(JSON.stringify({ type: 'queue_status', status: 'searching' }));
-
-            if (queueTimer) clearTimeout(queueTimer);
-            queueTimer = setTimeout(() => {
-              if (matchQueue.includes(sessionId) && !session.partnerId) {
-                handleCompanionSimulation(session);
-              }
-            }, 4500);
           }
           break;
         }
 
         case 'cancel_queue': {
-          if (queueTimer) clearTimeout(queueTimer);
           const qIdx = matchQueue.indexOf(sessionId);
           if (qIdx !== -1) matchQueue.splice(qIdx, 1);
           session.joinedQueueAt = null;
@@ -669,10 +607,8 @@ wss.on('connection', (ws) => {
         }
 
         case 'next_stranger': {
-          if (queueTimer) clearTimeout(queueTimer);
           dissolvePair(sessionId, true);
           session.joinedQueueAt = Date.now();
-          session.isSimulatedPartner = false;
           const matchedPeerId = findMatchFor(sessionId);
           if (matchedPeerId) {
             pairUsers(sessionId, matchedPeerId);
@@ -681,19 +617,12 @@ wss.on('connection', (ws) => {
               matchQueue.push(sessionId);
             }
             ws.send(JSON.stringify({ type: 'queue_status', status: 'searching' }));
-            queueTimer = setTimeout(() => {
-              if (matchQueue.includes(sessionId) && !session.partnerId) {
-                handleCompanionSimulation(session);
-              }
-            }, 4000);
           }
           break;
         }
 
         case 'leave_chat': {
-          if (queueTimer) clearTimeout(queueTimer);
           dissolvePair(sessionId, true);
-          session.isSimulatedPartner = false;
           ws.send(JSON.stringify({ type: 'chat_terminated' }));
           break;
         }
@@ -704,52 +633,6 @@ wss.on('connection', (ws) => {
           const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           const messageId = generateRandomId();
 
-          if (session.isSimulatedPartner) {
-            ws.send(JSON.stringify({ type: 'message_ack', id: messageId }));
-
-            setTimeout(() => {
-              if (session.partnerId && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'partner_typing', isTyping: true }));
-                setTimeout(() => {
-                  if (session.partnerId && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'partner_typing', isTyping: false }));
-
-                    let replyContent =
-                      companionReplies[Math.floor(Math.random() * companionReplies.length)];
-                    let mediaType = undefined;
-                    let mediaUrl = undefined;
-                    let sensitive = false;
-
-                    if (msg.mediaType === 'image') {
-                      replyContent = "Nice visual... here is mine, don't show anyone else 🙈";
-                      mediaType = 'image';
-                      mediaUrl =
-                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80';
-                      sensitive = true;
-                    }
-
-                    ws.send(
-                      JSON.stringify({
-                        type: 'message',
-                        id: generateRandomId(),
-                        sender: 'stranger',
-                        content: replyContent,
-                        mediaType,
-                        mediaUrl,
-                        sensitive,
-                        timestamp: new Date().toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        }),
-                      })
-                    );
-                  }
-                }, 1600);
-              }
-            }, 600);
-            return;
-          }
-
           const partner = sessions.get(session.partnerId);
           if (partner && partner.ws.readyState === WebSocket.OPEN) {
             partner.ws.send(
@@ -757,6 +640,7 @@ wss.on('connection', (ws) => {
                 type: 'message',
                 id: messageId,
                 sender: 'stranger',
+                senderAvatarUrl: session.avatarUrl,
                 content: msg.content,
                 mediaType: msg.mediaType || 'text',
                 mediaUrl: msg.mediaUrl,
@@ -771,16 +655,14 @@ wss.on('connection', (ws) => {
 
         case 'typing': {
           if (!session.partnerId) return;
-          if (!session.isSimulatedPartner) {
-            const partner = sessions.get(session.partnerId);
-            if (partner && partner.ws.readyState === WebSocket.OPEN) {
-              partner.ws.send(
-                JSON.stringify({
-                  type: 'partner_typing',
-                  isTyping: !!msg.isTyping,
-                })
-              );
-            }
+          const partner = sessions.get(session.partnerId);
+          if (partner && partner.ws.readyState === WebSocket.OPEN) {
+            partner.ws.send(
+              JSON.stringify({
+                type: 'partner_typing',
+                isTyping: !!msg.isTyping,
+              })
+            );
           }
           break;
         }
@@ -802,13 +684,14 @@ wss.on('connection', (ws) => {
 
           const groupId = 'room_' + generateRandomId();
           const groupName = msg.name?.trim() || 'Late-Night Anonymous Lounge';
-          const topic = msg.topic || 'Late-Night Secrets';
+          const topic = msg.topic || 'Late Night';
           const description = msg.description?.trim() || 'A private ephemeral group lounge.';
           const isPrivate = !!msg.isPrivate;
           const passcode = msg.passcode?.trim() || undefined;
 
           if (msg.alias) session.groupAlias = msg.alias.trim();
           if (msg.color) session.groupColor = msg.color;
+          if (msg.avatarUrl) session.avatarUrl = msg.avatarUrl;
 
           const newGroup: GroupRoomState = {
             id: groupId,
@@ -841,12 +724,16 @@ wss.on('connection', (ws) => {
             id: session.id,
             alias: session.groupAlias || 'Room Founder',
             color: session.groupColor || '#ec4899',
+            avatarUrl: session.avatarUrl,
+            status: 'online',
             isHost: true,
             joinedAt: Date.now(),
           });
 
           groupRooms.set(groupId, newGroup);
           session.currentGroupId = groupId;
+
+          const allNewMembers = Array.from(newGroup.members.values());
 
           ws.send(
             JSON.stringify({
@@ -857,15 +744,17 @@ wss.on('connection', (ws) => {
                 topic: newGroup.topic,
                 description: newGroup.description,
                 isPrivate: newGroup.isPrivate,
-                memberCount: newGroup.members.size,
+                memberCount: 1,
+                totalEnteredCount: 1,
                 maxMembers: newGroup.maxMembers,
                 tags: newGroup.tags,
                 createdAt: newGroup.createdAt,
               },
-              members: Array.from(newGroup.members.values()),
+              members: allNewMembers,
               messages: newGroup.recentMessages,
               myAlias: session.groupAlias,
               myColor: session.groupColor,
+              myAvatar: session.avatarUrl,
             })
           );
 
@@ -900,25 +789,19 @@ wss.on('connection', (ws) => {
             return;
           }
 
-          if (group.members.size >= group.maxMembers) {
-            ws.send(
-              JSON.stringify({
-                type: 'group_error',
-                message: 'This lounge is at maximum capacity.',
-              })
-            );
-            return;
-          }
-
           if (msg.alias) session.groupAlias = msg.alias.trim();
           if (msg.color) session.groupColor = msg.color;
+          if (msg.avatarUrl) session.avatarUrl = msg.avatarUrl;
 
+          const existing = group.members.get(session.id);
           const memberInfo: GroupMemberState = {
             id: session.id,
-            alias: session.groupAlias || 'Stranger',
-            color: session.groupColor || '#ec4899',
+            alias: session.groupAlias || (existing ? existing.alias : 'Stranger'),
+            color: session.groupColor || (existing ? existing.color : '#ec4899'),
+            avatarUrl: session.avatarUrl || (existing ? existing.avatarUrl : DEFAULT_AVATARS[0]),
+            status: 'online',
             isHost: group.createdBy === session.id,
-            joinedAt: Date.now(),
+            joinedAt: existing ? existing.joinedAt : Date.now(),
           };
 
           group.members.set(session.id, memberInfo);
@@ -930,15 +813,19 @@ wss.on('connection', (ws) => {
             senderId: 'sys',
             senderAlias: session.groupAlias || 'Stranger',
             senderColor: session.groupColor || '#ec4899',
+            senderAvatarUrl: session.avatarUrl,
             isMe: false,
-            content: `${session.groupAlias} joined the lounge.`,
+            content: `${session.groupAlias} entered the lounge.`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             isSystem: true,
           };
           group.recentMessages.push(joinMsg);
-          if (group.recentMessages.length > 40) group.recentMessages.shift();
+          if (group.recentMessages.length > 50) group.recentMessages.shift();
 
-          // Send confirmation to user
+          const allMembers = Array.from(group.members.values());
+          const onlineCount = allMembers.filter((m) => m.status === 'online').length;
+
+          // Send confirmation to user with full entered users roster
           ws.send(
             JSON.stringify({
               type: 'group_joined',
@@ -948,26 +835,29 @@ wss.on('connection', (ws) => {
                 topic: group.topic,
                 description: group.description,
                 isPrivate: group.isPrivate,
-                memberCount: group.members.size,
+                memberCount: onlineCount,
+                totalEnteredCount: allMembers.length,
                 maxMembers: group.maxMembers,
                 tags: group.tags,
                 createdAt: group.createdAt,
               },
-              members: Array.from(group.members.values()),
+              members: allMembers,
               messages: group.recentMessages,
               myAlias: session.groupAlias,
               myColor: session.groupColor,
+              myAvatar: session.avatarUrl,
             })
           );
 
-          // Broadcast to other members in the room
+          // Broadcast to other members in the room with updated members list
           broadcastToGroup(
             targetGroupId,
             JSON.stringify({
               type: 'group_member_joined',
               member: memberInfo,
+              members: allMembers,
               message: joinMsg,
-              memberCount: group.members.size,
+              memberCount: onlineCount,
             }),
             session.id
           );
@@ -994,6 +884,7 @@ wss.on('connection', (ws) => {
             senderId: session.id,
             senderAlias: session.groupAlias || 'Stranger',
             senderColor: session.groupColor || '#ec4899',
+            senderAvatarUrl: session.avatarUrl,
             isMe: false,
             content: msg.content,
             mediaType: msg.mediaType || 'text',
@@ -1047,7 +938,6 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    if (queueTimer) clearTimeout(queueTimer);
     dissolvePair(sessionId, true);
     leaveCurrentGroup(session);
     sessions.delete(sessionId);
@@ -1106,7 +996,10 @@ async function startServer() {
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

@@ -31,6 +31,9 @@ export function useCoupSocket() {
   const [groupError, setGroupError] = useState<string | null>(null);
   const [myAlias, setMyAlias] = useState<string>('Velvet Stranger');
   const [myColor, setMyColor] = useState<string>('#ec4899');
+  const [myAvatar, setMyAvatar] = useState<string>(
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=160&auto=format&fit=crop&q=80'
+  );
 
   const socketRef = useRef<WebSocket | null>(null);
   const groupTypingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -84,10 +87,11 @@ export function useCoupSocket() {
           case 'session_init':
             if (data.defaultAlias) setMyAlias(data.defaultAlias);
             if (data.defaultColor) setMyColor(data.defaultColor);
+            if (data.defaultAvatar) setMyAvatar(data.defaultAvatar);
             break;
 
           case 'online_stats':
-            setOnlineCount(data.onlineCount || 14820);
+            setOnlineCount(data.onlineCount || 1);
             break;
 
           case 'queue_status':
@@ -103,8 +107,9 @@ export function useCoupSocket() {
             setMatchInfo({
               strangerAlias: data.strangerAlias || 'Stranger',
               partnerGender: data.partnerGender,
+              partnerAvatarUrl: data.partnerAvatarUrl,
+              partnerStatus: data.partnerStatus || 'online',
               topic: data.topic,
-              isCompanion: data.isCompanion,
             });
             setMessages([
               {
@@ -122,6 +127,7 @@ export function useCoupSocket() {
           case 'partner_left':
             setPartnerLeft(true);
             setStrangerTyping(false);
+            setMatchInfo((prev) => (prev ? { ...prev, partnerStatus: 'offline' } : null));
             setMessages((prev) => [
               ...prev,
               {
@@ -174,14 +180,22 @@ export function useCoupSocket() {
             setGroupMessages(data.messages || []);
             if (data.myAlias) setMyAlias(data.myAlias);
             if (data.myColor) setMyColor(data.myColor);
+            if (data.myAvatar) setMyAvatar(data.myAvatar);
             setGroupError(null);
             setViewState('group_chat');
             break;
 
           case 'group_member_joined':
-            if (data.member) {
+            if (data.members) {
+              setGroupMembers(data.members);
+            } else if (data.member) {
               setGroupMembers((prev) => {
-                if (prev.some((m) => m.id === data.member.id)) return prev;
+                const idx = prev.findIndex((m) => m.id === data.member.id);
+                if (idx !== -1) {
+                  const updated = [...prev];
+                  updated[idx] = data.member;
+                  return updated;
+                }
                 return [...prev, data.member];
               });
             }
@@ -193,13 +207,25 @@ export function useCoupSocket() {
             }
             break;
 
-          case 'group_member_left':
-            setGroupMembers((prev) => prev.filter((m) => m.id !== data.memberId));
+          case 'group_member_status':
+            if (data.members) {
+              setGroupMembers(data.members);
+            } else if (data.memberId && data.status) {
+              setGroupMembers((prev) =>
+                prev.map((m) => (m.id === data.memberId ? { ...m, status: data.status } : m))
+              );
+            }
             if (data.message) {
               setGroupMessages((prev) => [...prev, data.message]);
             }
             if (data.memberCount !== undefined && activeGroup) {
               setActiveGroup((prev) => (prev ? { ...prev, memberCount: data.memberCount } : null));
+            }
+            break;
+
+          case 'group_members_updated':
+            if (data.members) {
+              setGroupMembers(data.members);
             }
             break;
 
@@ -276,13 +302,14 @@ export function useCoupSocket() {
             myGender,
             seekingGender,
             topic,
+            avatarUrl: myAvatar,
           })
         );
       } else {
         connect();
       }
     },
-    [connect]
+    [connect, myAvatar]
   );
 
   const cancelQueue = useCallback(() => {
@@ -370,6 +397,27 @@ export function useCoupSocket() {
     );
   }, []);
 
+  // Profile actions
+  const updateProfile = useCallback(
+    (alias?: string, color?: string, avatarUrl?: string) => {
+      if (alias) setMyAlias(alias);
+      if (color) setMyColor(color);
+      if (avatarUrl) setMyAvatar(avatarUrl);
+
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.send(
+          JSON.stringify({
+            type: 'update_profile',
+            alias: alias || myAlias,
+            color: color || myColor,
+            avatarUrl: avatarUrl || myAvatar,
+          })
+        );
+      }
+    },
+    [myAlias, myColor, myAvatar]
+  );
+
   // Group actions
   const fetchGroups = useCallback(() => {
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
@@ -386,33 +434,36 @@ export function useCoupSocket() {
       passcode?: string;
       alias?: string;
       color?: string;
+      avatarUrl?: string;
       tags?: string[];
     }) => {
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(
           JSON.stringify({
             type: 'create_group',
+            avatarUrl: options.avatarUrl || myAvatar,
             ...options,
           })
         );
       }
     },
-    []
+    [myAvatar]
   );
 
   const joinGroup = useCallback(
-    (groupId: string, options?: { passcode?: string; alias?: string; color?: string }) => {
+    (groupId: string, options?: { passcode?: string; alias?: string; color?: string; avatarUrl?: string }) => {
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(
           JSON.stringify({
             type: 'join_group',
             groupId,
+            avatarUrl: options?.avatarUrl || myAvatar,
             ...options,
           })
         );
       }
     },
-    []
+    [myAvatar]
   );
 
   const leaveGroup = useCallback(() => {
@@ -494,6 +545,9 @@ export function useCoupSocket() {
     setMyAlias,
     myColor,
     setMyColor,
+    myAvatar,
+    setMyAvatar,
+    updateProfile,
     fetchGroups,
     createGroup,
     joinGroup,

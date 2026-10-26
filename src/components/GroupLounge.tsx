@@ -17,8 +17,11 @@ import {
   Compass,
   MessageSquare,
   MessageCircle,
+  ShieldCheck,
+  Camera,
 } from 'lucide-react';
 import { GroupRoom } from '../types';
+import { AvatarPickerModal } from './AvatarPickerModal';
 
 interface GroupLoungeProps {
   groups: GroupRoom[];
@@ -35,8 +38,10 @@ interface GroupLoungeProps {
   }) => void;
   myAlias: string;
   myColor: string;
+  myAvatar?: string;
   onUpdateAlias: (alias: string) => void;
   onUpdateColor: (color: string) => void;
+  onUpdateAvatar?: (avatarUrl: string) => void;
   groupError: string | null;
   onClearError: () => void;
   onlineCount: number;
@@ -94,8 +99,10 @@ export const GroupLounge: React.FC<GroupLoungeProps> = ({
   onCreateGroup,
   myAlias,
   myColor,
+  myAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=160&auto=format&fit=crop&q=80',
   onUpdateAlias,
   onUpdateColor,
+  onUpdateAvatar,
   groupError,
   onClearError,
   onlineCount,
@@ -105,6 +112,7 @@ export const GroupLounge: React.FC<GroupLoungeProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'members' | 'newest' | 'name'>('members');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [passcodeModalGroup, setPasscodeModalGroup] = useState<GroupRoom | null>(null);
   const [enteredPasscode, setEnteredPasscode] = useState('');
   const [quickCodeInput, setQuickCodeInput] = useState('');
@@ -260,8 +268,30 @@ export const GroupLounge: React.FC<GroupLoungeProps> = ({
 
         {/* Persona quick switch strip */}
         <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap items-center justify-between gap-4 text-xs">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-slate-400">Your Anonymous Persona:</span>
+
+            {/* Profile Avatar with Status Dot */}
+            <div className="flex items-center gap-2">
+              <div className="relative shrink-0">
+                <img
+                  src={myAvatar}
+                  alt={myAlias}
+                  className="w-8 h-8 rounded-full object-cover ring-2 ring-pink-500 shadow-sm"
+                />
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#100624] animate-pulse" />
+              </div>
+              <button
+                onClick={() => setIsAvatarModalOpen(true)}
+                className="px-2 py-1 rounded-lg bg-white/[0.06] hover:bg-white/15 border border-white/10 text-slate-300 hover:text-white text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                title="Change your profile picture"
+              >
+                <Camera className="w-3 h-3 text-pink-400" />
+                <span>Change Pic</span>
+              </button>
+            </div>
+
+            {/* Alias input */}
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.05] border border-white/10">
               <span
                 className="w-2.5 h-2.5 rounded-full shrink-0"
@@ -955,6 +985,19 @@ export const GroupLounge: React.FC<GroupLoungeProps> = ({
           </div>
         </div>
       )}
+
+      {/* Avatar Picker Modal */}
+      <AvatarPickerModal
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        currentAvatar={myAvatar}
+        currentAlias={myAlias}
+        onSelectAvatar={(avatarUrl) => {
+          if (onUpdateAvatar) {
+            onUpdateAvatar(avatarUrl);
+          }
+        }}
+      />
     </div>
   );
 };

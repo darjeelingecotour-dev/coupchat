@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Users,
   Send,
@@ -14,10 +14,13 @@ import {
   Sparkles,
   Check,
   X,
+  Camera,
+  Circle,
 } from 'lucide-react';
 import { GroupRoom, GroupMember, GroupMessage } from '../types';
 import { GifPicker } from './GifPicker';
 import { MediaModal } from './MediaModal';
+import { AvatarPickerModal } from './AvatarPickerModal';
 
 interface GroupChatRoomProps {
   group: GroupRoom;
@@ -36,6 +39,8 @@ interface GroupChatRoomProps {
   onToggleRevealMedia: (messageId: string) => void;
   myAlias: string;
   myColor: string;
+  myAvatar: string;
+  onUpdateAvatar: (avatarUrl: string) => void;
 }
 
 const GROUP_ICEBREAKERS = [
@@ -57,12 +62,23 @@ export const GroupChatRoom: React.FC<GroupChatRoomProps> = ({
   onToggleRevealMedia,
   myAlias,
   myColor,
+  myAvatar,
+  onUpdateAvatar,
 }) => {
   const [inputText, setInputText] = useState('');
   const [isGifPickerOpen, setIsGifPickerOpen] = useState(false);
   const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
   const [isMembersDrawerOpen, setIsMembersDrawerOpen] = useState(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+
+  const onlineMembersCount = useMemo(() => {
+    return members.filter((m) => m.status === 'online').length;
+  }, [members]);
+
+  const offlineMembersCount = useMemo(() => {
+    return members.filter((m) => m.status === 'offline').length;
+  }, [members]);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -149,41 +165,69 @@ export const GroupChatRoom: React.FC<GroupChatRoomProps> = ({
 
         {/* Header Right Actions */}
         <div className="flex items-center gap-2">
+          {/* Quick Profile Pic Button */}
+          <button
+            onClick={() => setIsAvatarModalOpen(true)}
+            className="flex items-center gap-1.5 p-1 sm:px-2.5 sm:py-1 rounded-xl bg-white/[0.04] hover:bg-white/10 border border-white/10 text-xs font-semibold text-slate-200 transition-all cursor-pointer"
+            title="Change your profile picture"
+          >
+            <img
+              src={myAvatar}
+              alt="My Avatar"
+              className="w-5 h-5 rounded-full object-cover ring-1 ring-pink-500"
+            />
+            <span className="hidden sm:inline text-[11px]">My Pic</span>
+          </button>
+
+          {/* Entered Users Panel Toggle */}
+          <button
+            onClick={() => setIsMembersDrawerOpen(!isMembersDrawerOpen)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-pink-600/15 hover:bg-pink-600/25 border border-pink-500/30 text-xs font-semibold text-pink-300 transition-all cursor-pointer"
+            title="Open Entered Users Panel"
+          >
+            <Users className="w-3.5 h-3.5 text-pink-400" />
+            <span className="hidden sm:inline font-bold">Entered Users</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-pink-500/20 text-white font-mono">
+              {members.length}
+            </span>
+            <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold bg-emerald-500/15 px-1.5 py-0.2 rounded-md">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {onlineMembersCount}
+            </span>
+          </button>
+
           <button
             onClick={handleCopyInvite}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-pink-600/20 border border-white/10 hover:border-pink-500/40 text-xs font-semibold text-pink-300 transition-all cursor-pointer"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/10 border border-white/10 text-xs font-semibold text-slate-300 transition-all cursor-pointer"
             title="Copy room invite link/code"
           >
             {copiedCode ? (
               <>
                 <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline text-emerald-400">Copied!</span>
+                <span className="text-emerald-400">Copied</span>
               </>
             ) : (
               <>
                 <Share2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Invite Code</span>
+                <span>Invite</span>
               </>
             )}
-          </button>
-
-          <button
-            onClick={() => setIsMembersDrawerOpen(true)}
-            className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer relative"
-            title="View participants"
-          >
-            <Users className="w-4 h-4" />
-            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-pink-600 text-[9px] font-bold text-white flex items-center justify-center">
-              {members.length}
-            </span>
           </button>
         </div>
       </div>
 
-      {/* Ephemerality notice */}
-      <div className="px-4 py-1.5 bg-violet-950/30 border-b border-violet-500/10 text-[11px] text-violet-300/80 flex items-center justify-center gap-2 shrink-0">
-        <Flame className="w-3 h-3 text-pink-400 shrink-0" />
-        <span>Group Lounge: Messages &amp; media vanish when members leave. Zero server history.</span>
+      {/* Real Humans Notice Pill */}
+      <div className="px-4 py-1.5 bg-violet-950/30 border-b border-violet-500/10 text-[11px] text-violet-300/80 flex items-center justify-between px-4 sm:px-6 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <Flame className="w-3 h-3 text-pink-400 shrink-0" />
+          <span>100% Real Users • Zero Bots • Anonymous Ephemeral Lounge</span>
+        </div>
+        <button
+          onClick={() => setIsMembersDrawerOpen(true)}
+          className="text-pink-300 hover:text-white underline cursor-pointer text-[10px] font-semibold"
+        >
+          View Entered Users ({onlineMembersCount} Online, {offlineMembersCount} Offline)
+        </button>
       </div>
 
       {/* Message Stream */}
@@ -462,70 +506,165 @@ export const GroupChatRoom: React.FC<GroupChatRoomProps> = ({
         onSendMedia={(payload) => onSendMessage(payload)}
       />
 
-      {/* Active Members Drawer */}
+      {/* Avatar Customization Modal */}
+      <AvatarPickerModal
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        currentAvatar={myAvatar}
+        onSelectAvatar={onUpdateAvatar}
+        currentAlias={myAlias}
+      />
+
+      {/* ENTERED USERS PANEL: Shows all entered users with profile pic and status (online or offline) */}
       {isMembersDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-80 max-w-full bg-[#110826] border-l border-white/10 h-full p-5 flex flex-col justify-between shadow-2xl animate-in slide-in-from-right duration-250">
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-88 max-w-full bg-[#100724] border-l border-white/10 h-full p-5 flex flex-col justify-between shadow-2xl animate-in slide-in-from-right duration-250">
+            <div className="space-y-4">
+              {/* Panel Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
                 <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-pink-400" />
-                  <h3 className="text-sm font-bold text-white">
-                    Night Owls in Lounge ({members.length})
-                  </h3>
+                  <div className="p-1.5 rounded-xl bg-pink-500/20 text-pink-400">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-white">
+                      Entered Users ({members.length})
+                    </h3>
+                    <p className="text-[10px] text-slate-400">100% Real Humans • Zero Bots</p>
+                  </div>
                 </div>
                 <button
                   onClick={() => setIsMembersDrawerOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer"
+                  title="Close panel"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="space-y-2 overflow-y-auto max-h-[70vh]">
-                {members.map((member) => {
-                  const isCurrent = member.alias === myAlias;
-                  return (
-                    <div
-                      key={member.id}
-                      className={`p-2.5 rounded-2xl border flex items-center justify-between gap-3 ${
-                        isCurrent
-                          ? 'bg-pink-600/15 border-pink-500/30'
-                          : 'bg-white/[0.02] border-white/5'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm"
-                          style={{ backgroundColor: member.color || '#ec4899' }}
-                        >
-                          {member.alias.charAt(0)}
+              {/* Status Summary Counts */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <div>
+                    <span className="text-xs font-bold text-white block">{onlineMembersCount} Online</span>
+                    <span className="text-[9px] text-emerald-300">Active right now</span>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-slate-500" />
+                  <div>
+                    <span className="text-xs font-bold text-slate-300 block">{offlineMembersCount} Offline</span>
+                    <span className="text-[9px] text-slate-400">Left lounge</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* My Profile Capsule in Panel */}
+              <div className="p-3 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="relative">
+                    <img
+                      src={myAvatar}
+                      alt={myAlias}
+                      className="w-10 h-10 rounded-full object-cover ring-2 ring-pink-500"
+                    />
+                    <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-400 ring-2 ring-[#100724]" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-white block">{myAlias} (You)</span>
+                    <span className="text-[10px] text-emerald-400 font-semibold">● Status: Online</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsAvatarModalOpen(true)}
+                  className="px-2.5 py-1 rounded-lg bg-pink-600/30 hover:bg-pink-600 border border-pink-500/40 text-pink-200 hover:text-white text-[10px] font-bold transition-all cursor-pointer"
+                >
+                  Change Pic
+                </button>
+              </div>
+
+              {/* Roster of All Entered Users */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                  <span>All Entered Users</span>
+                  <span>{members.length} Total</span>
+                </div>
+
+                <div className="space-y-2 overflow-y-auto max-h-[50vh] pr-1 scrollbar-thin">
+                  {members.map((member) => {
+                    const isCurrent = member.alias === myAlias;
+                    const isOnline = member.status === 'online';
+
+                    return (
+                      <div
+                        key={member.id}
+                        className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                          isOnline
+                            ? isCurrent
+                              ? 'bg-pink-600/15 border-pink-500/40'
+                              : 'bg-white/[0.04] border-white/10 hover:border-pink-500/30'
+                            : 'bg-white/[0.01] border-white/5 opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {/* Profile Picture with Online Status Ring */}
+                          <div className="relative shrink-0">
+                            <img
+                              src={member.avatarUrl || myAvatar}
+                              alt={member.alias}
+                              className={`w-10 h-10 rounded-full object-cover shadow-sm ${
+                                isOnline
+                                  ? 'ring-2 ring-emerald-400/80'
+                                  : 'ring-2 ring-slate-600 grayscale'
+                              }`}
+                            />
+                            {/* Status indicator on avatar */}
+                            <span
+                              className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ring-2 ring-[#100724] ${
+                                isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
+                              }`}
+                            />
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+                              <span className="truncate">{member.alias}</span>
+                              {isCurrent && (
+                                <span className="text-[10px] text-pink-400 font-semibold shrink-0">
+                                  (You)
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                              {member.isHost ? '👑 Lounge Host' : 'Anonymous Human'}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs font-bold text-white flex items-center gap-1.5">
-                            {member.alias}
-                            {isCurrent && (
-                              <span className="text-[10px] text-pink-400 font-semibold">
-                                (You)
-                              </span>
-                            )}
-                          </p>
-                          <p className="text-[10px] text-slate-400">Anonymous</p>
+
+                        {/* Status Badge */}
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          {isOnline ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                              Online
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/5 border border-white/10 text-slate-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                              Offline
+                            </span>
+                          )}
                         </div>
                       </div>
-
-                      {member.isHost && (
-                        <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
-                          Host
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            <div className="pt-4 border-t border-white/10">
+            <div className="pt-4 border-t border-white/10 space-y-2">
               <button
                 onClick={onLeaveGroup}
                 className="w-full py-2.5 rounded-xl border border-rose-500/40 text-rose-300 hover:bg-rose-500 hover:text-white font-bold text-xs transition-colors cursor-pointer"
