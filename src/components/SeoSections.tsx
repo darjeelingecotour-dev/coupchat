@@ -20,33 +20,88 @@ export const SeoSections: React.FC<SeoSectionsProps> = ({ onStartChat }) => {
 
   const faqs = [
     {
-      q: 'Is Coupchat really 100% anonymous and free?',
-      a: 'Yes. Coupchat never requires an account, email, phone number, or social login. You are assigned a random pseudonymous identifier (e.g., Stranger #842) on each connection. No personal details are ever collected.',
+      q: 'Can I talk with Indian strangers in Hindi and regional languages on Coupchat?',
+      a: 'Yes! Coupchat features dedicated Hindi chat lounges as well as Punjabi, Bengali, Marathi, Telugu, Kannada, and Bhojpuri regional rooms. You can also match 1-on-1 with Indian strangers across the world instantly without creating an account.',
     },
     {
-      q: 'How does Coupchat compare to Subichat.in?',
-      a: 'Coupchat is built as the ultimate modern alternative to Subichat with a dedicated late-night velvet & neon aesthetic, strict RAM-only ephemerality, real-time typing indicators, integrated GIF reactions, and automatic tap-to-reveal safety filters on all photos and video clips.',
+      q: 'How does Coupchat compare to SubiChat.in?',
+      a: 'Coupchat is the high-performance modern alternative to SubiChat. While traditional Indian stranger chat sites like SubiChat require guest registrations or logins and feature cluttered interfaces, Coupchat requires zero signup, operates 100% in ephemeral RAM with zero stored chat histories, and offers built-in tap-to-reveal blurred media protection.',
+    },
+    {
+      q: 'Is Coupchat really 100% anonymous and free?',
+      a: 'Yes. Coupchat never requires an account, email, phone number, or social login. You are assigned a random pseudonymous identifier (e.g., Velvet Panther) on each connection. No personal details or cookies are ever stored.',
     },
     {
       q: 'What happens to messages, images, and video clips after the chat?',
-      a: 'They are completely destroyed. Coupchat has zero persistent database storage. The millisecond either participant clicks NEXT, refreshes the tab, or closes the window, the session room is dissolved and all message text, images, and clips are instantly purged from server memory.',
+      a: 'They are completely incinerated. Coupchat has zero persistent database storage. The millisecond either participant clicks NEXT, leaves the lounge, or closes their browser, all session text, images, and clips are instantly purged from volatile server memory.',
     },
     {
       q: 'How does the Sensitive Media Tap-to-Reveal filter work?',
-      a: 'Whenever someone uploads an image or short video clip, Coupchat automatically renders it with a heavy Gaussian blur and a "Sensitive Media" overlay. The recipient must intentionally tap the overlay to view it. This prevents unprompted NSFW exposure.',
+      a: 'Whenever someone uploads an image or video clip, Coupchat automatically renders it with a heavy Gaussian blur and a "Sensitive Media" overlay. The recipient must intentionally tap the overlay to view it, preventing unwanted surprises.',
     },
     {
-      q: 'Can I choose who I want to chat with?',
-      a: 'Yes. On the Coupchat match terminal, you can set your gender identity ("I Am A") and your preference ("Seeking: Girls, Guys, or Everyone"), as well as your desired conversation vibe (Late-Night Secrets, Flirting & Sparks, Deep Talks, or Wild Card).',
+      q: 'What are the rules for Indian stranger chat rooms?',
+      a: 'Respect all participants, never share personal financial or contact info (such as UPI, phone numbers, or passwords), avoid spamming or advertisements, and keep conversations consensual. Violations result in an immediate automatic ban.',
     },
-    {
-      q: 'What should I do if a stranger is being abusive or inappropriate?',
-      a: 'Click the Flag / Report button at the top of the chat room. The stranger is immediately flagged, the session terminates, and you are automatically routed to a brand-new stranger.',
-    },
+  ];
+
+  const regionalRooms = [
+    { name: '🇮🇳 Hindi Chat Rooms', desc: 'Desi gupshup, Bollywood & late-night talks', tag: 'Hindi' },
+    { name: '🪘 Punjabi Chat Rooms', desc: 'Bhangra beats, Punjab diyan gallan & fun', tag: 'Punjabi' },
+    { name: '☕ Bangla Chat Rooms', desc: 'Kolkata adda, poetry, cinema & music', tag: 'Bengali' },
+    { name: '☕ Marathi Chat Rooms', desc: 'Marathi katta, Mumbai/Pune night owls', tag: 'Marathi' },
+    { name: '🌴 Telugu Chat Rooms', desc: 'Tollywood, casual banter & tech talks', tag: 'Telugu' },
+    { name: '🌴 Kannada Chat Rooms', desc: 'Bengaluru vibes, chill music & conversations', tag: 'Kannada' },
+    { name: '🎉 Bhojpuri Chat Rooms', desc: 'Desi entertainment, jokes & energetic banter', tag: 'Bhojpuri' },
+    { name: '🌐 English Chat Rooms', desc: 'Global discussions, gaming & deep talks', tag: 'English' },
   ];
 
   return (
     <div className="w-full space-y-20 py-12 border-t border-white/[0.06] bg-transparent">
+      
+      {/* SECTION 1: Indian Stranger Chat & Regional Language Lounges (SEO Pillar) */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="text-center max-w-3xl mx-auto space-y-3 mb-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-bold uppercase tracking-wider">
+            <span>🇮🇳 Indian Stranger Chat &amp; Hindi Lounges</span>
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+            Connect With Indian Strangers in Your Native Language
+          </h2>
+          <p className="text-sm text-slate-300 leading-relaxed">
+            Looking for authentic <strong>Indian chat talk with strangers</strong>? Coupchat offers real-time stranger chat rooms across Indian languages, from late-night Hindi gupshup to regional cultural lounges.
+          </p>
+        </div>
+
+        {/* Regional Rooms Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {regionalRooms.map((room, idx) => (
+            <div
+              key={idx}
+              className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-rose-500/40 hover:bg-rose-500/[0.04] transition-all group"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-bold text-white group-hover:text-rose-300 transition-colors">
+                  {room.name}
+                </h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300">
+                  {room.tag}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mb-3 leading-relaxed">
+                {room.desc}
+              </p>
+              <button
+                onClick={onStartChat}
+                className="text-xs font-bold text-rose-400 group-hover:text-rose-300 flex items-center gap-1 cursor-pointer"
+              >
+                <span>Join Lounge</span>
+                <span>&rarr;</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
       
 
 

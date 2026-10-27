@@ -49,6 +49,7 @@ interface GroupLoungeProps {
 
 const CATEGORIES = [
   { key: 'All', label: 'All', icon: '✨' },
+  { key: 'Desi & Hindi', label: 'Desi & Hindi', icon: '🇮🇳' },
   { key: 'General', label: 'General', icon: '🍸' },
   { key: 'Late Night', label: 'Late Night', icon: '🌙' },
   { key: 'Chill', label: 'Chill', icon: '🎶' },
@@ -62,6 +63,21 @@ function matchesCategory(roomTopic: string, selectedCat: string): boolean {
   const t = (roomTopic || '').toLowerCase();
   const s = selectedCat.toLowerCase();
 
+  if (s === 'desi & hindi') {
+    return (
+      t.includes('desi') ||
+      t.includes('hindi') ||
+      t.includes('punjabi') ||
+      t.includes('marathi') ||
+      t.includes('bengali') ||
+      t.includes('bangla') ||
+      t.includes('bhojpuri') ||
+      t.includes('south') ||
+      t.includes('telugu') ||
+      t.includes('tamil') ||
+      t.includes('kannada')
+    );
+  }
   if (s === 'general') {
     return t.includes('general') || t.includes('casual') || t.includes('bar') || t.includes('plaza');
   }
