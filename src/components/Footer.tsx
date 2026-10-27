@@ -8,7 +8,7 @@ interface FooterProps {
 
 export const Footer: React.FC<FooterProps> = ({ onNavigateTab }) => {
   return (
-    <footer className="w-full border-t border-white/[0.08] bg-[#05020a] py-10 text-slate-400 text-xs">
+    <footer className="w-full border-t border-white/[0.08] bg-[#060104]/80 backdrop-blur-md py-10 text-slate-400 text-xs">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-6">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">

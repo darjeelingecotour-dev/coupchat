@@ -1,6 +1,6 @@
 import React from 'react';
-import { Flame, Sparkles, Users } from 'lucide-react';
-import { ViewState, NavigationTab } from '../types';
+import { Flame, Sparkles, Users, Palette } from 'lucide-react';
+import { ViewState, NavigationTab, ThemeConfig } from '../types';
 
 interface NavbarProps {
   viewState: ViewState;
@@ -9,6 +9,8 @@ interface NavbarProps {
   onEndChat: () => void;
   activeTab: NavigationTab;
   onlineCount: number;
+  currentTheme?: ThemeConfig;
+  onOpenTheme: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -18,10 +20,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   onEndChat,
   activeTab,
   onlineCount,
+  currentTheme,
+  onOpenTheme,
 }) => {
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-white/[0.08] bg-[#090412]/85 backdrop-blur-xl">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-8">
+    <header className="sticky top-0 z-40 w-full border-b border-rose-500/15 bg-[#0c0207]/85 backdrop-blur-xl">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4 sm:gap-8">
         {/* Zone 1: Brand Wordmark */}
         <div className="flex items-center gap-3 shrink-0">
           <button
@@ -87,8 +91,21 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </nav>
 
-        {/* Zone 3: 1 Primary Action */}
-        <div className="flex items-center gap-3 shrink-0">
+        {/* Zone 3: Actions + Theme Picker */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Theme customizer button */}
+          <button
+            onClick={onOpenTheme}
+            title="Customize Atmosphere & Theme"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-white/[0.05] border border-white/10 hover:border-pink-500/50 hover:bg-white/[0.08] text-slate-200 transition-all cursor-pointer shadow-sm group"
+          >
+            <Palette className="w-3.5 h-3.5 text-pink-400 group-hover:rotate-12 transition-transform" />
+            <span className="hidden sm:inline">Theme</span>
+            {currentTheme?.preset === 'crimson_velvet' && (
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse hidden sm:inline" />
+            )}
+          </button>
+
           {viewState === 'chat' || viewState === 'group_chat' ? (
             <button
               onClick={onEndChat}
@@ -122,3 +139,4 @@ export const Navbar: React.FC<NavbarProps> = ({
     </header>
   );
 };
+

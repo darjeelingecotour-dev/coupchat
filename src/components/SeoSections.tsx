@@ -46,7 +46,7 @@ export const SeoSections: React.FC<SeoSectionsProps> = ({ onStartChat }) => {
   ];
 
   return (
-    <div className="w-full space-y-20 py-12 border-t border-white/[0.06] bg-[#07030e]">
+    <div className="w-full space-y-20 py-12 border-t border-white/[0.06] bg-transparent">
       
 
 

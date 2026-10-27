@@ -33,3 +33,27 @@
 .neon-glow-violet {
   box-shadow: 0 0 20px rgba(139, 92, 246, 0.45);
 }
+
+.velvet-glow-crimson {
+  box-shadow: 0 0 30px rgba(225, 29, 72, 0.4);
+}
+
+.candlelight-glow {
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.35);
+}
+
+@keyframes pulseSlow {
+  0%, 100% {
+    opacity: 0.28;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.42;
+    transform: scale(1.06);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulseSlow 8s ease-in-out infinite;
+}
+
